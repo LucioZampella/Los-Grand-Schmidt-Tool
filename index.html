@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Interactivo de Tweets - #MYFIELD</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mapa de Eventos - Buenos Aires</h1>
+    <button id="btnUbicacion">Actualizar a Mi Ubicación</button>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        // MAPA
+        var map = L.map('map').setView([-34.6075682, -58.4370894], 8); // Buenos Aires
+
+        // MAPA BASE
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: 'Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+        // ICONOS
+        var iconoFuego = L.icon({
+            iconUrl: 'icons/fuego.png',
+            iconSize: [48, 48],
+            iconAnchor: [24, 48],
+            popupAnchor: [0, -48]
+        });
+
+        var iconoAgua = L.icon({
+            iconUrl: 'icons/agua.png',
+            iconSize: [48, 48],
+            iconAnchor: [24, 48],
+            popupAnchor: [0, -48]
+        });
+
+        var iconoSol = L.icon({
+            iconUrl: 'icons/sol.png',
+            iconSize: [48, 48],
+            iconAnchor: [24, 48],
+            popupAnchor: [0, -48]
+        });
+
+        var iconoPin = L.icon({
+            iconUrl: 'icons/pin.png',
+            iconSize: [48, 48],
+            iconAnchor: [24, 48],
+            popupAnchor: [0, -48]
+        });
+
+        let markers = [];
+
+        function agregarMarcadoresDispersos() {
+            var marcadoresEjemplo = [
+                { coords: [-34.603722, -58.381592], icon: iconoFuego, texto: "1" },
+                { coords: [-34.615051, -58.433855], icon: iconoAgua, texto: "2" }, 
+                { coords: [-34.629404, -58.458198], icon: iconoSol, texto: "3" }, 
+                { coords: [-34.6700, -58.5700], icon: iconoPin, texto: "4" },
+                { coords: [-34.7500, -58.3800], icon: iconoPin, texto: "5" },
+            ];
+
+            // AGREGAR MARCADORES EN EL MAPA
+            marcadoresEjemplo.forEach(markerData => {
+                let marker = L.marker(markerData.coords, { icon: markerData.icon })
+                    .addTo(map)
+                    .bindPopup(markerData.texto);
+                markers.push(marker);
+            });
+        }
+
+        // OBTENER LOS TWEET Y OBTENER MARCADORES
+        async function obtenerTweets() {
+            try {
+                let response = await fetch('http://localhost:3000/tweets'); // Cambia según tu endpoint
+                let data = await response.json();
+
+                // Eliminar los marcadores antiguos
+                markers.forEach(marker => map.removeLayer(marker));
+                markers = [];
+
+                // PROCESAR LOS TWEET Y AGREGARLOS
+                data.data.forEach(tweet => {
+                    if (tweet.geo) {
+                        let lat = tweet.geo.coordinates.coordinates[1];  // Latitud
+                        let lon = tweet.geo.coordinates.coordinates[0];  // Longitud
+                        let eventoIcono;
+
+                        // MI FUNCION QUE SEGUN EL CONTENIDO DEL TUIT DETERMINA EL CODIGO
+                        if (tweet.text.includes('incendio')) {
+                            eventoIcono = iconoFuego;
+                        } else if (tweet.text.includes('inundación')) {
+                            eventoIcono = iconoAgua;
+                        } else if (tweet.text.includes('sequía')) {
+                            eventoIcono = iconoSol;
+                        }
+
+                        // MARCADOR POR EVENTO
+                        if (eventoIcono) {
+                            let marker = L.marker([lat, lon], { icon: eventoIcono }).addTo(map)
+                                .bindPopup(`<b>${tweet.text}</b><br><i>Ubicación del evento</i>`);
+                            markers.push(marker);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error al obtener tweets:', error);
+            }
+        }
+
+        // Función para centrar el mapa en la ubicación del usuario
+        function centrarEnMiUbicacion() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const { latitude, longitude } = position.coords;
+                    map.setView([latitude, longitude], 13); // Centrar el mapa en la ubicación del usuario
+                    L.marker([latitude, longitude], { icon: iconoPin }).addTo(map)
+                        .bindPopup("Estás aquí").openPopup();
+                }, () => {
+                    alert("No se pudo obtener la ubicación.");
+                });
+            } else {
+                alert("La geolocalización no es soportada por este navegador.");
+            }
+        }
+
+        document.getElementById('btnUbicacion').onclick = centrarEnMiUbicacion;
+
+        agregarMarcadoresDispersos();
+        obtenerTweets();
+        setInterval(obtenerTweets, 30000);
+    </script>
+</body>
+</html>
